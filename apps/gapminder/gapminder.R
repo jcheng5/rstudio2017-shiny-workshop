@@ -1,7 +1,7 @@
 library(shiny)
 library(dplyr)
 source("data.R")
-source("gapModule.R")
+source("gapmodule.R")
 
 # UI --------------------------------------------------------------------------
 ui <- fluidPage(
