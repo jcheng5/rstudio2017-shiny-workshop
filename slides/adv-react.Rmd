@@ -282,6 +282,72 @@ output$value <- renderText({
 
 ---
 
+## When to use reactiveValues
+
+_Don't_ use `reactiveValues` when you're calculating a value based on other values and calculations that are already available to you.
+
+_Do_ use `reactiveValues` to store state that otherwise would be lost from your graph of reactive objects. For example:
+
+- A calculation over the history of something reactive
+```{r eval=FALSE}
+observeEvent(input$add, {
+  rv$total <- rv$total + input$x
+})
+```
+
+(Or a more elegant way to do the same, using [hadley/shinySignals](https://github.com/hadley/shinySignals):)
+
+```{r eval=FALSE}
+total <- shinySignals::reducePast(reactive(input$x), `+`, 0)
+```
+
+---
+
+## When to use reactiveValues
+
+- Tracking which of several events happened most recently
+```{r eval=FALSE}
+observeEvent(input$editMode, {
+  rv$mode <- "edit"
+})
+
+observeEvent(input$previewMode, {
+  rv$mode <- "preview"
+})
+
+output$page <- renderUI({
+  if (rv$mode == "edit") {
+    ...
+  } else if (rv$mode == "preview") {
+    ...
+  }
+})
+```
+
+---
+
+## When to use reactiveValues
+
+- To change the usual rules of reactivity
+
+Normally, as soon as reactive expressions are invalidated (before they have recalculated) they invalidate everyone downstream who depends on them.
+
+But sometimes recalculating will end up giving us the same value as the previous anyway, and any downstream recalculations might have been wasted work. So:
+
+```{r eval=FALSE}
+dedupeReactive <- function(rexpr, priority = 10) {
+  rv <- reactiveValues(value = NULL)
+  
+  observe({
+    rv$value <- rexpr()  # TODO: Handle errors
+  }, priority = priority)
+  
+  reactive(rv$value)
+}
+```
+
+---
+
 ## Preventing reactivity with isolate()
 
 Use `isolate` from inside a reactive expression or observer, to ignore the implicit reactivity of a piece of code. Wrap it around expressions or a whole code block.
