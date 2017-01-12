@@ -1,0 +1,7 @@
+.countdown-timer .countdown-timer-time {
+  font-family: monospace;
+  font-size: 36px;
+}
+.countdown-timer.active .countdown-timer-time {
+  color: green;
+}

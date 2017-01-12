@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Advanced Reactivity</title>
+    <meta charset="utf-8">
+    <meta name="author" content="Joe Cheng" />
+    <link href="libs/remark-css-0.0.1/example.css" rel="stylesheet" />
+    <script src="libs/jquery-1.12.0/jquery-1.12.0.min.js"></script>
+    <link href="libs/countdown_timer-0.1.0/countdown.css" rel="stylesheet" />
+    <script src="libs/countdown_timer-0.1.0/countdown.js"></script>
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Advanced Reactivity
+## rstudio::conf 2017
+### Joe Cheng
+### 2017/01/11
+
+---
+
+
+&lt;style type="text/css"&gt;
+.callout-bold strong {
+  font-weight: normal;
+  color: #444444;
+  background-color: #FFFFAA;
+}
+.hljs-keyword {
+  font-weight: normal !important;
+}
+th {
+  text-align: left;
+}
+td, th {
+  padding: 3px 20px 3px 0;
+}
+&lt;/style&gt;
+
+
+
+## Reactivity catalog
+
+Store values: [`reactiveValues`](http://shiny.rstudio.com/reference/shiny/latest/reactiveValues.html) / `input` / [`makeReactiveBinding`](http://shiny.rstudio.com/reference/shiny/latest/makeReactiveBinding.html)
+
+Calculate values: [`reactive`](http://shiny.rstudio.com/reference/shiny/latest/reactive.html) / [`eventReactive`](http://shiny.rstudio.com/reference/shiny/latest/observeEvent.html)
+
+Execute tasks: [`observe`](http://shiny.rstudio.com/reference/shiny/latest/observe.html) / [`observeEvent`](http://shiny.rstudio.com/reference/shiny/latest/observeEvent.html)
+
+Preventing reactivity: [`isolate`](http://shiny.rstudio.com/reference/shiny/latest/isolate.html)
+
+Checking preconditions: [`req`](http://shiny.rstudio.com/reference/shiny/latest/req.html)
+
+Time (as a reactive source): [`invalidateLater`](http://shiny.rstudio.com/reference/shiny/latest/invalidateLater.html) / [~~`reactiveTimer`~~](http://shiny.rstudio-staging.com/reference/shiny/latest/reactiveTimer.html)
+
+Rate-limiting: [`debounce`](http://shiny.rstudio-staging.com/reference/shiny/latest/debounce.html) / [`throttle`](http://shiny.rstudio-staging.com/reference/shiny/latest/debounce.html)
+
+Live data: [`reactiveFileReader`](http://shiny.rstudio-staging.com/reference/shiny/latest/reactiveFileReader.html) / [`reactivePoll`](http://shiny.rstudio-staging.com/reference/shiny/latest/reactivePoll.html)
+
+(Pretty sure this is just the beginning...)
+
+---
+class: callout-bold
+
+## Reactivity catalog
+
+Store values: [**`reactiveValues`**](http://shiny.rstudio.com/reference/shiny/latest/reactiveValues.html) / `input` / [`makeReactiveBinding`](http://shiny.rstudio.com/reference/shiny/latest/makeReactiveBinding.html)
+
+Calculate values: [**`reactive`**](http://shiny.rstudio.com/reference/shiny/latest/reactive.html) / [`eventReactive`](http://shiny.rstudio.com/reference/shiny/latest/observeEvent.html)
+
+Execute tasks: [**`observe`**](http://shiny.rstudio.com/reference/shiny/latest/observe.html) / [`observeEvent`](http://shiny.rstudio.com/reference/shiny/latest/observeEvent.html)
+
+Preventing reactivity: [**`isolate`**](http://shiny.rstudio.com/reference/shiny/latest/isolate.html)
+
+Checking preconditions: [**`req`**](http://shiny.rstudio.com/reference/shiny/latest/req.html)
+
+Time (as a reactive source): [**`invalidateLater`**](http://shiny.rstudio.com/reference/shiny/latest/invalidateLater.html) / [~~`reactiveTimer`~~](http://shiny.rstudio-staging.com/reference/shiny/latest/reactiveTimer.html)
+
+Rate-limiting: [`debounce`](http://shiny.rstudio-staging.com/reference/shiny/latest/debounce.html) / [`throttle`](http://shiny.rstudio-staging.com/reference/shiny/latest/debounce.html)
+
+Live data: [`reactiveFileReader`](http://shiny.rstudio-staging.com/reference/shiny/latest/reactiveFileReader.html) / [`reactivePoll`](http://shiny.rstudio-staging.com/reference/shiny/latest/reactivePoll.html)
+
+(Pretty sure this is just the beginning...)
+
+**Highlighted functions are fundamental**, all others are built on top.
+
+---
+
+## Review: Reactive expressions
+
+Use to *calculate new values* based on reactive values and other reactive expressions.
+
+*Caches* its return value, until notified of reactive dependencies being out-of-date.
+
+*Lazily* executes--Shiny wants to avoid running these whenever possible. For this reason, meaningful *side effects* are prohibited from reactive expressions.
+
+Call it like a function when you want to read its value.
+
+---
+
+## Review: Reactive expressions
+
+
+```r
+# Declare
+movies_subset &lt;- reactive({
+  movies %&gt;% filter(title_type %in% input$type)
+})
+
+# Read
+output$scatterplot &lt;- renderPlot({
+  ggplot(movies_subset(), aes(...)) + geom_point()
+})
+```
+
+---
+
+## Review: Observers
+
+Use to *execute actions* based on changing reactive values and other reactive expressions.
+
+Doesn't return a value. So performing *side effects* is usually the only reason you'd want to create one of these.
+
+*Eagerly* executed by Shiny.
+
+
+```r
+observe({
+  print(paste("The value of x is", input$x))
+})
+
+## [1] The value of x is 10
+## [1] The value of x is 16
+## [1] The value of x is 9
+```
+
+---
+
+## Reactive expressions vs observers
+
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;reactive()&lt;/th&gt;&lt;th&gt;observe()&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Callable&lt;/td&gt;&lt;td&gt;Not callable&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Returns a value&lt;/td&gt;&lt;td&gt;No return value&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Lazy&lt;/td&gt;&lt;td&gt;Eager&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Cached&lt;/td&gt;&lt;td&gt;N/A&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;No side effects&lt;/td&gt;&lt;td&gt;Only for side effects&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+---
+
+## Reactive expressions vs observers vs functions
+
+&lt;table&gt;
+&lt;tr&gt;&lt;th&gt;reactive()&lt;/th&gt;&lt;th&gt;observe()&lt;/th&gt;&lt;th&gt;function() {...}&lt;/th&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Callable&lt;/td&gt;&lt;td&gt;Not callable&lt;/td&gt;&lt;td&gt;Callable&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Returns a value&lt;/td&gt;&lt;td&gt;No return value&lt;/td&gt;&lt;td&gt;Returns a value&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Lazy&lt;/td&gt;&lt;td&gt;Eager&lt;/td&gt;&lt;td&gt;Lazy&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;Cached&lt;/td&gt;&lt;td&gt;N/A&lt;/td&gt;&lt;td&gt;Not cached&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;No side effects&lt;/td&gt;&lt;td&gt;Only for side effects&lt;/td&gt;&lt;td&gt;Side effects optional&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+---
+
+## observeEvent and eventReactive
+
+Every reactive expression or reactive value read by a `reactive()` or `observe()` block automatically becomes a *reactive dependency* of that reactive expression/observer.
+
+`observeEvent` and `eventReactive` give us finer control.
+
+
+```r
+observeEvent(input$save_button, {
+  write.csv(movies_subset(), "movies.csv")
+})
+```
+
+**"When the `save_button` button is clicked, write the value of `movie_subset` to disk."** (Don't write to disk automatically when `movie_subset` changes.)
+
+---
+
+## observeEvent and eventReactive
+
+- observeEvent is for event handling
+- eventReactive is for delayed computation
+
+
+```r
+observeEvent(when_this_changes, {
+  do_this
+})
+
+r &lt;- eventReactive(when_this_changes, {
+  recalculate_this
+})
+```
+
+Use these functions when you want to **explicitly name your reactive dependencies**, as opposed to letting `reactive`/`observe` implicitly depend on anything they read.
+
+---
+
+## Exercise: CRAN logs
+
+Open `apps/reactivity/cranlogs.R` and run it. This app has several problems:
+
+- We get an error right off the bat--the plot is running before the user has specified any packages.
+- Unless you're a very fast typist, typing package names will cause the cranlogs server to be queried with many incomplete queries.
+
+Add an "Update" `actionButton` to the UI, and make sure nothing happens until it's clicked.
+
+<div class="countdown-timer" data-timespan="300">
+<span class="countdown-timer-time">5:00</span>
+<br/>
+<button class="countdown-timer-start" type="button">Start</button>
+<button class="countdown-timer-stop" type="button">Stop</button>
+<button class="countdown-timer-reset" type="button">Reset</button>
+</div>
+
+---
+
+## Solution
+
+See `apps/reactivity/cranlogs.solution.R`.
+
+
+```r
+packages &lt;- reactive({
+  strsplit(input$packages, " *, *")[[1]]
+})
+```
+
+becomes
+
+
+```r
+packages &lt;- eventReactive(input$update, {
+  strsplit(input$packages, " *, *")[[1]]
+})
+```
+
+---
+
+## Review: reactiveValues
+
+Read/write versions of `input`.
+
+
+```r
+# Create
+rv &lt;- reactiveValues(x = 10)
+
+# Read
+rv$x
+
+# Write
+rv$x &lt;- 20
+```
+
+Try not to use this to store _calculated_ values. But in some cases, it's unavoidable.
+
+---
+
+## Exercise: Counter
+
+Open the file `apps/reactivity/counter.R`. It has three action buttons:
+
+- Increment: Increase the value by 1
+- Decrement: Decrease the value by 1
+- Reset: Set the value to 0
+
+Unfortunately, it doesn't work. See if you can implement the server side.
+
+<div class="countdown-timer" data-timespan="600">
+<span class="countdown-timer-time">10:00</span>
+<br/>
+<button class="countdown-timer-start" type="button">Start</button>
+<button class="countdown-timer-stop" type="button">Stop</button>
+<button class="countdown-timer-reset" type="button">Reset</button>
+</div>
+
+---
+
+## Solution
+
+See `apps/reactivity/counter.solution.R`.
+
+
+```r
+rv &lt;- reactiveValues(count = 0)
+
+observeEvent(input$increment, {
+  rv$count &lt;- rv$count + 1
+})
+observeEvent(input$decrement, {
+  rv$count &lt;- rv$count - 1
+})
+observeEvent(input$reset, {
+  rv$count &lt;- 0
+})
+
+output$value &lt;- renderText({
+  rv$count
+})
+```
+
+---
+
+## Preventing reactivity with isolate()
+
+Use `isolate` from inside a reactive expression or observer, to ignore the implicit reactivity of a piece of code. Wrap it around expressions or a whole code block.
+
+
+```r
+# Updates every time input$x or input$y change
+r1 &lt;- reactive({
+  input$x * input$y
+})
+
+# Updates only when input$x changes
+r2 &lt;- reactive({
+  input$x * isolate(input$y)
+})
+
+# Never updates; it will always have its original value
+r3 &lt;- reactive({
+  isolate({
+    input$x * input$y
+  })
+})
+```
+
+---
+
+## Preventing reactivity with isolate()
+
+This used to be an extremely common pattern:
+
+
+```r
+observe({
+  # Take a reactive dependency on input$save_button
+  input$save_button
+  
+  isolate({
+    write.csv(movies_subset(), "movies.csv")
+  })
+})
+```
+
+Does this look familiar?
+
+--
+
+
+```r
+observeEvent(input$save_button, {
+  write.csv(movies_subset(), "movies.csv")
+})
+```
+
+---
+
+## Checking preconditions with req()
+
+#### Cancel the current output (or observer) if a condition isn't met.
+
+**`req(input$text)`**  
+Ensure the user has provided a value for the `"text"` input
+
+**`req(input$button)`**  
+Ensure the button has been pressed at least once
+
+**`req(x %% 2 == 0)`**  
+Ensure that x is an even number
+
+**`req(FALSE)`**  
+Unconditionally cancel the current reactive, observer, or output
+
+---
+
+## Checking preconditions with req()
+
+`req(cond)` is similar to:
+- `stopifnot(cond)`
+- `if (!cond) stop()`
+- `assertthat::assert_that(cond)`
+
+but with these differences:
+- Errors during output rendering show up with bold red text in the UI; `req` just makes the output blank
+- Rather than verifying that `cond` is _true_, `req` verifies that `cond` is _truthy_ (see `?isTruthy`)
+  - Feels unnatural to be so arbitrary and nebulous, but this definition is just too practical for UI programming
+
+---
+
+## Checking preconditions with req()
+
+Most importantly, `req` is like an error in that it "infects" the downstream elements of the reactive graph (if a reactive throws an error, then any other reactive/observer/output that tries to access it will also throw an error).
+
+We'll illustrate with an exercise:
+
+---
+
+## Exercise: Dynamic UI
+
+Open `app/reactivity/dynamic.solution.R` and run it.
+
+It has lots of errors in the browser and the R console--ignore those for the moment.
+
+From the app, upload the `diamonds.csv` file found in the same directory. Now everything looks good.
+
+See if you can figure out why these errors appear when the app first comes up, and how you can get them to go away (first without `req`, and then, if you have time and can figure out how, using `req`).
+
+<div class="countdown-timer" data-timespan="420">
+<span class="countdown-timer-time">7:00</span>
+<br/>
+<button class="countdown-timer-start" type="button">Start</button>
+<button class="countdown-timer-stop" type="button">Stop</button>
+<button class="countdown-timer-reset" type="button">Reset</button>
+</div>
+
+---
+
+## Anti-solution
+
+Open `apps/reactivity/dynamic.antisolution.R`.
+
+This is how you used to have to do it: check for missing values yourself, and `return(NULL)`.
+
+You had to do this in every reactive, observer, or output that could have a missing value, _plus_ all of the reactives, observers, and outputs that are downstream!
+
+---
+
+## Solution
+
+Open `apps/reactivity/dynamic.solution.R`.
+
+Now you can use `req` in the reactives, observers, and outputs that _directly_ use potentially-missing inputs, and everything downstream can just not worry about it.
+
+---
+
+## Time as a reactive source: invalidateLater
+
+Besides using changing values as the impetus for reactive invalidation, we can also use the passage of time.
+
+
+```r
+r &lt;- reactive({
+  Sys.time()
+})
+
+output$text &lt;- renderPrint({
+  r()
+})
+```
+
+What will this produce?
+
+---
+
+## Time as a reactive source: invalidateLater
+
+Besides using changing values as the impetus for reactive invalidation, we can also use the passage of time.
+
+
+```r
+r &lt;- reactive({
+* invalidateLater(1000)
+  Sys.time()
+})
+
+output$text &lt;- renderPrint({
+  r()
+})
+```
+
+How about now?
+
+---
+
+## Near-realtime data sources
+
+Use `reactiveFileReader` and `reactivePoll` to keep up-to-date with potentially changing data sources.
+
+Winston and I will cover these functions in the Shiny Dashboards tutorial tomorrow.
+
+---
+
+## debounce and throttle
+
+If a reactive value or expression changes too fast for downstream calculations to keep up, you can end up with a bad user experience (laggy experience, wasted work).
+
+`debounce` and `throttle` take a reactive expression object as input, and return a _rate-limited_ version of that reactive expression.
+
+
+```r
+# A reactive that updates as often as every 50 milliseconds
+fast_reactive &lt;- reactive({ ... })
+
+# A reactive that updates no more often than every 2000 milliseconds
+throttled_reactive &lt;- throttle(fast_reactive, 2000)
+
+
+# A reactive that doesn't update until fast_reactive has stopped
+# changing for at least 1000 milliseconds
+debounced_reactive &lt;- throttle(fast_reactive, 1000)
+```
+
+Note that we pass `fast_reactive`, not `fast_reactive()`. Why?
+
+---
+
+## Exercise: points.R
+
+Open and run `apps/reactivity/points.R`. Click on the plot a few times to create points. Notice the annoying laggy behavior--this is due to a (simulated) expensive summary output.
+
+Use `debounce` or `throttle` to prevent the summary output from running so often.
+
+<div class="countdown-timer" data-timespan="300">
+<span class="countdown-timer-time">5:00</span>
+<br/>
+<button class="countdown-timer-start" type="button">Start</button>
+<button class="countdown-timer-stop" type="button">Stop</button>
+<button class="countdown-timer-reset" type="button">Reset</button>
+</div>
+
+---
+class: middle
+
+## End
+    </textarea>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true
+});
+if (window.HTMLWidgets) slideshow.on('showSlide', function (slide) {setTimeout(function() {window.dispatchEvent(new Event('resize'));}, 100)});</script>
+
+  </body>
+</html>
